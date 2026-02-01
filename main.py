@@ -75,7 +75,7 @@ def handle_message(event, say, logger):
     # Invoke Claude Code CLI
     try:
         result = subprocess.run(
-            ["claude", "-p", "/winebuddy"],
+            ["claude", "-p", "/winebuddy Format output for Slack mrkdwn, not markdown."],
             input=text,
             capture_output=True,
             text=True,
