@@ -25,7 +25,8 @@ def handle_message(event, say, logger):
     # Invoke Claude Code CLI
     try:
         result = subprocess.run(
-            ["claude", "-p", text],
+            ["claude", "-p", "/winebuddy"],
+            input=text,
             capture_output=True,
             text=True,
             timeout=300,
