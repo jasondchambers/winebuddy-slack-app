@@ -1,4 +1,5 @@
 import os
+import subprocess
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
@@ -9,7 +10,7 @@ app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 # Event handler for messages
 @app.event("message")
 def handle_message(event, say, logger):
-    """Echo back the message content"""
+    """Invoke Claude Code with the message and return the response"""
 
     # Ignore bot messages to prevent infinite loops
     if event.get("bot_id"):
@@ -18,12 +19,24 @@ def handle_message(event, say, logger):
     # Get the message text
     text = event.get("text", "")
     user = event.get("user")
-    channel = event.get("channel")
 
     logger.info(f"Received message from {user}: {text}")
 
-    # Echo back the message
-    response = f"Echo: {text}"
+    # Invoke Claude Code CLI
+    try:
+        result = subprocess.run(
+            ["claude", "-p", text],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        response = result.stdout or result.stderr or "No response from Claude"
+    except subprocess.TimeoutExpired:
+        response = "Request timed out"
+    except Exception as e:
+        logger.error(f"Error invoking Claude: {e}")
+        response = f"Error: {e}"
+
     say(response)
 
 
