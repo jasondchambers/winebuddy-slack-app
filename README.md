@@ -4,6 +4,10 @@ A Slack bot that lets you query your personal wine cellar using natural language
 
 ![WineBuddy Slack App](example.png)
 
+## Architecture
+
+![WineBuddy Architecture](architecture.png)
+
 ## Setup
 
 ### Prerequisites
