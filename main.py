@@ -46,7 +46,7 @@ app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 # Event handler for messages
 @app.event("message")
-def handle_message(event, say, logger):
+def handle_message(event, say, client, logger):
     """Invoke Claude Code with the message and return the response"""
 
     # Ignore bot messages to prevent infinite loops
@@ -54,6 +54,7 @@ def handle_message(event, say, logger):
         return
 
     user = event.get("user")
+    channel = event.get("channel")
 
     # Check rate limit
     if is_rate_limited(user):
@@ -72,6 +73,10 @@ def handle_message(event, say, logger):
 
     logger.info(f"Received message from {user}: {text}")
 
+    # Send immediate feedback
+    pending_message = say("WineBuddy is working on it...")
+    ts = pending_message["ts"]
+
     # Invoke Claude Code CLI
     try:
         result = subprocess.run(
@@ -88,7 +93,8 @@ def handle_message(event, say, logger):
         logger.error(f"Error invoking Claude: {e}")
         response = f"Error: {e}"
 
-    say(response)
+    # Update the pending message with the response
+    client.chat_update(channel=channel, ts=ts, text=response)
 
 
 # Event handler for app mentions (@YourApp)
