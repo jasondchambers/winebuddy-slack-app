@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import subprocess
@@ -5,6 +6,8 @@ from collections import defaultdict
 from time import time
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+
+logging.basicConfig(level=logging.INFO)
 
 MAX_MESSAGE_LENGTH = 2000
 RATE_LIMIT_SECONDS = 5
@@ -80,18 +83,27 @@ def handle_message(event, say, client, logger):
     # Invoke Claude Code CLI
     try:
         result = subprocess.run(
-            ["claude", "-p", "/winebuddy Format output for Slack mrkdwn, not markdown."],
+            [
+                "claude",
+                "--allowedTools", "Bash(*)",
+                "-p", "/winebuddy Format output for Slack mrkdwn, not markdown.",
+            ],
             input=text,
             capture_output=True,
             text=True,
             timeout=300,
         )
         response = result.stdout or result.stderr or "No response from Claude"
+        if result.stderr:
+            logger.warning(f"Claude stderr: {result.stderr}")
     except subprocess.TimeoutExpired:
+        logger.error(f"Claude timed out for user {user}")
         response = "Request timed out"
     except Exception as e:
         logger.error(f"Error invoking Claude: {e}")
         response = f"Error: {e}"
+
+    logger.info(f"Response to {user}: {response}")
 
     # Update the pending message with the response
     client.chat_update(channel=channel, ts=ts, text=response)

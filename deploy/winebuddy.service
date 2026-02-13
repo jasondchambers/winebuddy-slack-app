@@ -1,0 +1,21 @@
+[Unit]
+Description=WineBuddy Slack Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=winebuddy
+WorkingDirectory=/opt/winebuddy-slack-app
+ExecStart=/usr/bin/doppler run --project winebuddy-slack-app --config prod -- /home/winebuddy/.local/bin/uv run python main.py
+Restart=on-failure
+RestartSec=10
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/winebuddy-slack-app /home/winebuddy
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
