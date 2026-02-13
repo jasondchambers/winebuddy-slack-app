@@ -181,3 +181,7 @@ You can also pre-clone it manually:
 ```bash
 su - winebuddy -c "git clone https://github.com/jasondchambers/winebuddy.git ~/.winebuddy"
 ```
+
+## Anthropic Cost Monitoring
+
+Visit the [Claude Console](https://platform.claude.com/settings/billing) to manage billing and usage associated with the API key.
