@@ -182,6 +182,14 @@ You can also pre-clone it manually:
 su - winebuddy -c "git clone https://github.com/jasondchambers/winebuddy.git ~/.winebuddy"
 ```
 
+## Debugging
+
+You can view the log messages as follows
+```bash
+debug.sh
+```
+
+
 ## Anthropic Cost Monitoring
 
 Visit the [Claude Console](https://platform.claude.com/settings/billing) to manage billing and usage associated with the API key.
