@@ -23,6 +23,9 @@ echo "Syncing dependencies and restarting service..."
 ssh "root@${HOST}" bash -c "'
   cd ${REMOTE_DIR}
   chown -R winebuddy:winebuddy ${REMOTE_DIR}
+  mkdir -p ${REMOTE_DIR}/.claude/skills/winebuddy
+  ln -sf /home/winebuddy/.winebuddy/SKILL.md ${REMOTE_DIR}/.claude/skills/winebuddy/SKILL.md
+  chown -h winebuddy:winebuddy ${REMOTE_DIR}/.claude/skills/winebuddy/SKILL.md
   su - winebuddy -c \"cd ${REMOTE_DIR} && /home/winebuddy/.local/bin/uv sync\"
   systemctl restart winebuddy
   systemctl status winebuddy --no-pager
