@@ -1,9 +1,10 @@
+import json
 import logging
 import os
 import re
 import subprocess
 from collections import defaultdict
-from time import time
+from time import time, monotonic
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
@@ -80,32 +81,87 @@ def handle_message(event, say, client, logger):
     pending_message = say("WineBuddy is working on it...")
     ts = pending_message["ts"]
 
-    # Invoke Claude Code CLI
+    # Invoke Claude Code CLI with streaming JSON output
+    STREAM_UPDATE_INTERVAL = 2.0  # seconds between Slack message updates
+    t_start = time()
+    response = ""
+
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             [
                 "claude",
                 "--allowedTools", "Bash(*)",
+                "--output-format", "stream-json",
+                "--verbose",
                 "-p", "/winebuddy Format output for Slack mrkdwn, not markdown.",
             ],
-            input=text,
-            capture_output=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=300,
         )
-        response = result.stdout or result.stderr or "No response from Claude"
-        if result.stderr:
-            logger.warning(f"Claude stderr: {result.stderr}")
+
+        # Send input and close stdin
+        proc.stdin.write(text)
+        proc.stdin.close()
+
+        # Parse streaming JSON events and update Slack with assistant text
+        current_text = ""
+        last_update = monotonic()
+        proc_start = monotonic()
+
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            elapsed = monotonic() - proc_start
+            event_type = event.get("type", "unknown")
+            event_subtype = event.get("subtype", "")
+            label = f"{event_type}/{event_subtype}" if event_subtype else event_type
+
+            # Extract text from assistant messages as they arrive
+            if event_type == "assistant":
+                msg = event.get("message", {})
+                for block in msg.get("content", []):
+                    if block.get("type") == "text":
+                        current_text = block["text"]
+                logger.info(f"[{elapsed:.1f}s] {label}: {current_text[:120]}")
+            elif event_type == "result":
+                current_text = event.get("result", current_text)
+                logger.info(f"[{elapsed:.1f}s] {label}: {current_text[:120]}")
+            else:
+                logger.info(f"[{elapsed:.1f}s] {label}")
+
+            # Periodically update Slack with progress
+            now = monotonic()
+            if current_text and now - last_update >= STREAM_UPDATE_INTERVAL:
+                client.chat_update(channel=channel, ts=ts, text=current_text)
+                last_update = now
+
+        proc.wait(timeout=300)
+        response = current_text or "No response from Claude"
+
+        stderr_out = proc.stderr.read()
+        if stderr_out:
+            logger.warning(f"Claude stderr: {stderr_out}")
+
     except subprocess.TimeoutExpired:
         logger.error(f"Claude timed out for user {user}")
+        proc.kill()
         response = "Request timed out"
     except Exception as e:
         logger.error(f"Error invoking Claude: {e}")
         response = f"Error: {e}"
 
-    logger.info(f"Response to {user}: {response}")
+    t_claude = time() - t_start
+    logger.info(f"Claude subprocess took {t_claude:.2f}s for user {user}")
 
-    # Update the pending message with the response
+    # Final update with complete response
     client.chat_update(channel=channel, ts=ts, text=response)
 
 

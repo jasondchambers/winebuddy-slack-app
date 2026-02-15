@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 User=winebuddy
 WorkingDirectory=/opt/winebuddy-slack-app
+Environment=PATH=/home/winebuddy/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/bin/doppler run --project winebuddy-slack-app --config prod -- /home/winebuddy/.local/bin/uv run python main.py
 Restart=on-failure
 RestartSec=10
