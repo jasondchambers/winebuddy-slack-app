@@ -90,6 +90,7 @@ def handle_message(event, say, client, logger):
         proc = subprocess.Popen(
             [
                 "claude",
+                "--model", "sonnet",
                 "--allowedTools", "Bash(*)",
                 "--output-format", "stream-json",
                 "--verbose",
