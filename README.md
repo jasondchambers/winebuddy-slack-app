@@ -94,3 +94,5 @@ Slack (Socket Mode) → main.py → Claude CLI → /winebuddy skill → Response
 The app uses Slack's Socket Mode for real-time communication without needing a public HTTP endpoint.
 
 The `/winebuddy` skill handles wine cellar queries via Claude. See the [winebuddy repository](https://github.com/jasondchambers/winebuddy) for skill installation and configuration.
+The cellar inventory is still managed by the CellarTracker app. Winebuddy is kept in sync periodically by 
+[winebuddy-sync-with-cellartracker](https://github.com/jasondchambers/winebuddy-sync-with-cellartracker)
