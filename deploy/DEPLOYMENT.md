@@ -26,7 +26,18 @@ Deploy the WineBuddy Slack bot to a Proxmox LXC container running Debian 12.
 
 Enable SSH root login for initial setup (password or key-based).
 
-### 2. Deploy the code to the LXC
+### 2. Create the deployment.env file
+
+During development, secrets are managed using 1Password via the 1Password CLI (op). They are stored in Environments which at the time of writing is a beta feature.
+
+To streamline things in the deployed environment, 1Password is not used. Instead
+the deployment.env file must be generated from the secrets in 1Password and deployed
+onto the target LXC container.
+
+A local env file can be created from 1Password. It is a special file and so to create a regular file, it needs to be copied to create the deployment.env file.
+
+
+### 3. Deploy the code to the LXC
 
 Install `rsync` on the container first (not included in the base Debian template):
 
@@ -40,7 +51,7 @@ Then rsync the code from your dev machine:
 rsync -avz . root@<lxc-ip>:/opt/winebuddy-slack-app/
 ```
 
-### 3. Run the provisioning script
+### 4. Run the provisioning script
 
 SSH into the LXC and run the setup script:
 
@@ -57,26 +68,13 @@ This installs Node.js 22, Claude Code CLI, uv, Doppler CLI, creates the `winebud
 su - winebuddy -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
 ```
 
-### 4. Configure Doppler
-
-Switch to the `winebuddy` user and authenticate:
-
-```bash
-su - winebuddy
-doppler login
-cd /opt/winebuddy-slack-app
-doppler setup
-```
-
-When prompted, select project `winebuddy-slack-app` and config `prod`.
-
 ### 5. Configure Claude Code
 
 Still as the `winebuddy` user, verify Claude Code works with the Doppler-managed API key:
 
 ```bash
 cd /opt/winebuddy-slack-app
-doppler run -- claude --version
+claude --version
 ```
 
 The `ANTHROPIC_API_KEY` is injected by Doppler at runtime — no separate Claude Code authentication is needed.

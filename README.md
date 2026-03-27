@@ -47,9 +47,10 @@ uv sync
 ```bash
 export SLACK_BOT_TOKEN="xoxb-..."   # Bot User OAuth Token
 export SLACK_APP_TOKEN="xapp-..."   # App-Level Token for Socket Mode
+export ANTHROPIC_API_KEY="..."
 ```
 
-[Doppler](https://www.doppler.com/) is recommended for managing these secrets.
+1Password is recommended for managing these secrets.
 
 ## Usage
 
@@ -57,10 +58,10 @@ export SLACK_APP_TOKEN="xapp-..."   # App-Level Token for Socket Mode
 uv run python main.py
 ```
 
-Or with Doppler for secrets injection:
+Or with 1Password for secrets injection:
 
 ```bash
-doppler run -- uv run python main.py
+op run --environment $OP_ENVIRONMENT_ID -- uv run python main.py
 ```
 
 Then message the bot in Slack:
