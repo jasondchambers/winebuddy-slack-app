@@ -5,7 +5,7 @@ Deploy the WineBuddy Slack bot to a Proxmox LXC container running Debian 12.
 ## Prerequisites
 
 - Proxmox host with access to create LXC containers
-- Doppler account with project `winebuddy-slack-app` and config `prod` containing:
+- Environment variables containing values for (see deployment.env file below)
   - `SLACK_BOT_TOKEN`
   - `SLACK_APP_TOKEN`
   - `ANTHROPIC_API_KEY`
@@ -29,6 +29,8 @@ Enable SSH root login for initial setup (password or key-based).
 ### 2. Create the deployment.env file
 
 During development, secrets are managed using 1Password via the 1Password CLI (op). They are stored in Environments which at the time of writing is a beta feature.
+
+You will also need to create a service account in 1Password if not done so already.
 
 To streamline things in the deployed environment, 1Password is not used. Instead
 the deployment.env file must be generated from the secrets in 1Password and deployed
@@ -60,7 +62,7 @@ ssh root@<lxc-ip>
 bash /opt/winebuddy-slack-app/deploy/setup-lxc.sh
 ```
 
-This installs Node.js 22, Claude Code CLI, uv, Doppler CLI, creates the `winebuddy` system user, and enables the systemd unit.
+This installs Node.js 22, Claude Code CLI, uv, creates the `winebuddy` system user, and enables the systemd unit.
 
 **Note:** The setup script installs `uv` as root. It must also be installed for the `winebuddy` user:
 
@@ -70,14 +72,12 @@ su - winebuddy -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
 
 ### 5. Configure Claude Code
 
-Still as the `winebuddy` user, verify Claude Code works with the Doppler-managed API key:
+Still as the `winebuddy` user, verify Claude Code works with the deploymnent.env file
 
 ```bash
 cd /opt/winebuddy-slack-app
 claude --version
 ```
-
-The `ANTHROPIC_API_KEY` is injected by Doppler at runtime — no separate Claude Code authentication is needed.
 
 ### 6. Fix file ownership
 
@@ -124,11 +124,6 @@ Look for: `Chat app is running with Socket Mode!`
 
 Send a DM to the bot in Slack and verify it responds with wine recommendations.
 
-### Confirm secrets are injected
-
-```bash
-su - winebuddy -c "cd /opt/winebuddy-slack-app && doppler run -- env | grep SLACK"
-```
 
 ---
 
@@ -153,18 +148,9 @@ journalctl -u winebuddy --no-pager -n 50
 ```
 
 Common causes:
-- Doppler not configured — run `doppler setup` as the `winebuddy` user
 - uv not on PATH — check `/home/winebuddy/.local/bin/uv` exists
-- Missing secrets — verify with `doppler run -- env`
 - Permission denied on `.venv` — run `chown -R winebuddy:winebuddy /opt/winebuddy-slack-app` as root
 
-### Claude Code not responding
-
-Check that Claude Code can access the API key via Doppler:
-
-```bash
-su - winebuddy -c "cd /opt/winebuddy-slack-app && doppler run -- claude --version"
-```
 
 ### Winebuddy skill not working
 

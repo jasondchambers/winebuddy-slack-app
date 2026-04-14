@@ -41,6 +41,7 @@ uv sync
    - `message.channels`
    - `app_mention`
 6. Install the app to your workspace
+7. Invite the app into a channel
 
 ### Environment Variables
 
@@ -89,7 +90,7 @@ Then message the bot in Slack:
 ## Architecture
 
 ```
-Slack (Socket Mode) → main.py → Claude CLI → /winebuddy skill → Response
+Slack (Socket Mode) → main.py → Claude Code → /winebuddy skill → Response
 ```
 
 The app uses Slack's Socket Mode for real-time communication without needing a public HTTP endpoint.
