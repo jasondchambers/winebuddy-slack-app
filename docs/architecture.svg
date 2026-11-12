@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 510" width="1100" height="510" role="img" aria-labelledby="t">
+  <title id="t">WineBuddy architecture: Slack connects to main.py over Socket Mode; main.py calls ask.py, which calls the Claude API and runs the winebuddy CLI. winebuddy-sync-with-cellartracker keeps the cellar up to date from CellarTracker.</title>
+  <style>
+    /* Standalone copy of the page tokens. GitHub shows this file as an image, which can't load web fonts,
+       so the fonts fall back to the system's. Dark values follow the viewer's light/dark setting. */
+    :root {
+      --bg: #f4f5f8; --surface: #ffffff; --ink: #1b1d23; --muted: #5b6270; --line: #c6ccd7;
+      --claret: #8a1c3b; --claret-soft: #f4e7eb; --on-claret: #ffffff;
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #13151a; --surface: #1c1f26; --ink: #e6e8ee; --muted: #9aa1af; --line: #3a404c;
+        --claret: #e0708f; --claret-soft: #2a1a21; --on-claret: #1a0c11;
+      }
+    }
+    .canvas { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
+    /* SVG roles */
+    .zone { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 6 5; }
+    .zone-host { fill: var(--claret-soft); stroke: var(--claret); stroke-width: 1.5; stroke-opacity: .45; }
+    .zone-repo { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+    .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+    .box-key { fill: var(--surface); stroke: var(--claret); stroke-width: 1.6; }
+    .zlabel { font: 500 11px var(--font-mono); letter-spacing: .08em; fill: var(--claret); }
+    .zsub { font: 12px var(--font-body); fill: var(--muted); }
+    .btitle { font: 600 14.5px var(--font-body); fill: var(--ink); }
+    .bmono { font: 500 14px var(--font-mono); fill: var(--ink); font-variant-ligatures: none; }
+    .bmono-sm { font: 500 12.5px var(--font-mono); fill: var(--ink); font-variant-ligatures: none; }
+    .bsub { font: 11.5px var(--font-body); fill: var(--muted); }
+    .alabel { font: 11px var(--font-body); fill: var(--muted); }
+    .flow { stroke: var(--ink); stroke-width: 1.5; fill: none; }
+    .back { stroke: var(--muted); stroke-width: 1.2; fill: none; stroke-dasharray: 4 3; }
+    .ah { fill: var(--ink); }
+    .ah-back { fill: var(--muted); }
+    .repo-link { cursor: pointer; }
+    .repo-link .link-mark { font: 600 14px var(--font-body); fill: var(--claret); }
+    .repo-link:hover rect, .repo-link:focus-visible rect { stroke: var(--claret); stroke-width: 1.8; }
+    .repo-link:hover .bmono, .repo-link:hover .bmono-sm { fill: var(--claret); }
+    .repo-link:focus { outline: none; }
+    .step circle { fill: var(--claret); }
+    .step text { font: 600 11px var(--font-body); fill: var(--on-claret); text-anchor: middle; dominant-baseline: central; }
+  </style>
+  <rect class="canvas" x="0.5" y="0.5" width="1099" height="509" rx="10"/>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path class="ah" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+    <marker id="ah-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah-back" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+
+  <!-- Slack -->
+  <rect class="zone" x="16" y="40" width="200" height="180" rx="10"/>
+  <text class="zlabel" x="32" y="66">SLACK</text>
+  <text class="zsub" x="32" y="84">workspace</text>
+  <rect class="box" x="36" y="100" width="160" height="88" rx="8"/>
+  <text class="btitle" x="52" y="128">Channel or DM</text>
+  <text class="bsub" x="52" y="148">a question starts a thread</text>
+  <text class="bsub" x="52" y="166">replies are follow-ups</text>
+
+  <!-- LXC host -->
+  <rect class="zone-host" x="296" y="40" width="508" height="340" rx="10"/>
+  <text class="zlabel" x="312" y="66">PROXMOX LXC · DEBIAN 12</text>
+  <text class="zsub" x="312" y="84">winebuddy.service (systemd), /opt/winebuddy-slack-app</text>
+
+  <rect class="box-key" x="320" y="100" width="200" height="92" rx="8"/>
+  <text class="bmono" x="336" y="128">main.py</text>
+  <text class="bsub" x="336" y="148">slack-bolt, Socket Mode</text>
+  <text class="bsub" x="336" y="166">reads the thread, rate limits,</text>
+  <text class="bsub" x="336" y="182">streams the reply</text>
+
+  <rect class="box-key" x="580" y="100" width="200" height="92" rx="8"/>
+  <text class="bmono" x="596" y="128">ask.py</text>
+  <text class="bsub" x="596" y="148">Claude tool loop</text>
+  <text class="bsub" x="596" y="166">query_wines · discover</text>
+  <text class="bsub" x="596" y="182">at most 10 rounds</text>
+
+  <a class="repo-link" href="https://github.com/jasondchambers/winebuddy" target="_blank" rel="noopener">
+    <title>Open the winebuddy repo on GitHub</title>
+    <rect class="box" x="580" y="264" width="200" height="66" rx="8"/>
+    <text class="bmono" x="596" y="292">winebuddy</text>
+    <text class="link-mark" x="764" y="292" text-anchor="end">↗</text>
+    <text class="bsub" x="596" y="312">cellar CLI and skill</text>
+  </a>
+
+  <!-- Anthropic -->
+  <rect class="zone" x="884" y="40" width="200" height="180" rx="10"/>
+  <text class="zlabel" x="900" y="66">ANTHROPIC</text>
+  <text class="zsub" x="900" y="84">api.anthropic.com</text>
+  <rect class="box" x="904" y="100" width="160" height="88" rx="8"/>
+  <text class="btitle" x="920" y="128">Claude API</text>
+  <text class="bsub" x="920" y="148">claude-sonnet-5-5</text>
+  <text class="bsub" x="920" y="166">streamed, cached</text>
+
+  <!-- Cellar data -->
+  <a class="repo-link" href="https://www.cellartracker.com/" target="_blank" rel="noopener">
+    <title>Open CellarTracker</title>
+    <rect class="box" x="16" y="422" width="200" height="72" rx="8"/>
+    <text class="btitle" x="32" y="450">CellarTracker</text>
+    <text class="link-mark" x="200" y="450" text-anchor="end">↗</text>
+    <text class="bsub" x="32" y="470">where the cellar is managed</text>
+  </a>
+
+  <a class="repo-link" href="https://github.com/jasondchambers/winebuddy-sync-with-cellartracker" target="_blank" rel="noopener">
+    <title>Open the winebuddy-sync-with-cellartracker repo on GitHub</title>
+    <rect class="box" x="296" y="422" width="270" height="72" rx="8"/>
+    <text class="bmono-sm" x="312" y="450">winebuddy-sync-with-cellartracker</text>
+    <text class="link-mark" x="550" y="472" text-anchor="end">↗</text>
+    <text class="bsub" x="312" y="470">keeps the cellar up to date</text>
+  </a>
+
+
+  <!-- Request flow -->
+  <path class="flow" d="M216 126 H318" marker-end="url(#ah)"/>
+  <path class="back" d="M320 162 H218" marker-end="url(#ah-back)"/>
+  <path class="flow" d="M520 126 H578" marker-end="url(#ah)"/>
+  <path class="back" d="M580 162 H522" marker-end="url(#ah-back)"/>
+  <path class="flow" d="M780 126 H882" marker-end="url(#ah)"/>
+  <path class="back" d="M884 162 H782" marker-end="url(#ah-back)"/>
+  <path class="flow" d="M700 192 V262" marker-end="url(#ah)"/>
+  <text class="alabel" x="712" y="236">--refresh · query · discover</text>
+  <path class="back" d="M620 264 V194" marker-end="url(#ah-back)"/>
+  <text class="alabel" x="610" y="236" text-anchor="end">SKILL.md as system prompt</text>
+
+  <!-- Cellar data flow -->
+  <path class="back" d="M216 458 H294" marker-end="url(#ah-back)"/>
+  <path class="back" d="M520 422 V300 H578" marker-end="url(#ah-back)"/>
+  <text class="alabel" x="512" y="404" text-anchor="end">cellar data</text>
+
+  <!-- Legend -->
+  <path class="flow" d="M640 440 H676"/>
+  <text class="alabel" x="686" y="444">request</text>
+  <path class="back" d="M640 464 H676"/>
+  <text class="alabel" x="686" y="468">reply, or data read</text>
+  <g class="step"><circle cx="658" cy="488" r="9"/><text x="658" y="488">1</text></g>
+  <text class="alabel" x="686" y="492">step of one question, listed below the diagram</text>
+
+  <!-- Step markers -->
+  <g class="step"><circle cx="268" cy="126" r="10"/><text x="268" y="126">1</text></g>
+  <g class="step"><circle cx="549" cy="126" r="10"/><text x="549" y="126">2</text></g>
+  <g class="step"><circle cx="700" cy="212" r="10"/><text x="700" y="212">3</text></g>
+  <g class="step"><circle cx="832" cy="126" r="10"/><text x="832" y="126">4</text></g>
+  <g class="step"><circle cx="700" cy="240" r="10"/><text x="700" y="240">5</text></g>
+  <g class="step"><circle cx="268" cy="162" r="10"/><text x="268" y="162">6</text></g>
+</svg>

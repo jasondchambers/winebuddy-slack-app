@@ -8,7 +8,24 @@ through the winebuddy CLI.
 
 ## Architecture
 
-![WineBuddy Architecture](architecture.png)
+![WineBuddy architecture](docs/architecture.svg)
+
+What happens when someone asks a question:
+
+1. Slack delivers the message to `main.py` over Socket Mode. For a reply in a thread, `main.py` reads the thread so
+   far back from Slack.
+2. `main.py` hands the question and the thread to `ask.py`.
+3. `ask.py` runs `winebuddy --refresh` to bring the cellar up to date.
+4. `ask.py` sends the question to the Claude API, with the winebuddy skill (`SKILL.md`) as the system prompt.
+5. Claude's `query_wines` and `discover` tool calls run the winebuddy CLI. Steps 4 and 5 repeat until Claude
+   answers, up to 10 rounds.
+6. The answer streams back into the Slack thread.
+
+The cellar CLI and skill are in [winebuddy](https://github.com/jasondchambers/winebuddy), and the cellar is kept up to
+date from [CellarTracker](https://www.cellartracker.com/) by
+[winebuddy-sync-with-cellartracker](https://github.com/jasondchambers/winebuddy-sync-with-cellartracker).
+[docs/architecture.html](docs/architecture.html) has the diagram with clickable links and more detail; open it in a
+browser from a clone (`open docs/architecture.html` on macOS).
 
 ## Setup
 

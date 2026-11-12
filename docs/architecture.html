@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WineBuddy Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one wide system diagram with numbered request steps, then three short columns of detail */
+:root {
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --ink: #1b1d23;
+  --muted: #5b6270;
+  --line: #c6ccd7;
+  --claret: #8a1c3b;
+  --claret-soft: #f4e7eb;
+  --on-claret: #ffffff;
+  --font-display: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #13151a; --surface: #1c1f26; --ink: #e6e8ee; --muted: #9aa1af; --line: #3a404c;
+    --claret: #e0708f; --claret-soft: #2a1a21; --on-claret: #1a0c11; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #13151a; --surface: #1c1f26; --ink: #e6e8ee; --muted: #9aa1af; --line: #3a404c;
+  --claret: #e0708f; --claret-soft: #2a1a21; --on-claret: #1a0c11; color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 var(--font-body);
+}
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: 40px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 32px;
+}
+header { display: grid; gap: 8px; max-width: 68ch; }
+.eyebrow {
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--claret);
+}
+h1 {
+  font: 700 clamp(28px, 4vw, 40px)/1.1 var(--font-display);
+  margin: 0;
+  text-wrap: balance;
+}
+h2 {
+  font: 600 19px/1.25 var(--font-display);
+  margin: 0;
+  text-wrap: balance;
+}
+p { margin: 0; }
+.lede { color: var(--muted); font-size: 16px; }
+code { font: 13px var(--font-mono); font-variant-ligatures: none; }
+
+.diagram { overflow-x: auto; }
+.diagram-svg, .diagram-svg img { display: block; width: 100%; min-width: 900px; height: auto; aspect-ratio: 1100 / 510; }
+
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px 32px;
+}
+.steps li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start; min-width: 0; }
+.num {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--claret); color: var(--on-claret);
+  font: 600 12px/24px var(--font-body); text-align: center;
+  margin-top: 1px;
+}
+.steps strong { display: block; font-weight: 600; }
+.steps p { color: var(--muted); font-size: 14px; }
+
+.notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px 32px;
+  border-top: 1px solid var(--line);
+  padding-top: 28px;
+}
+.notes section { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.notes ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; display: grid; gap: 4px; }
+.notes p { color: var(--muted); font-size: 14px; }
+.notes a { color: var(--claret); }
+.notes a:focus-visible { outline: 2px solid var(--claret); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="eyebrow">winebuddy-slack-app</div>
+    <h1>WineBuddy Architecture</h1>
+    <p class="lede">A Slack bot that answers questions about the wine cellar. It calls the Claude API, which looks bottles up through the winebuddy CLI. Each Slack thread is one conversation.</p>
+  </header>
+
+  <div class="diagram" role="img" aria-label="Architecture diagram: Slack connects to main.py over Socket Mode; main.py calls ask.py, which calls the Claude API and runs the winebuddy CLI. winebuddy-sync-with-cellartracker keeps the cellar up to date from CellarTracker.">
+    <object class="diagram-svg" type="image/svg+xml" data="architecture.svg"><img src="architecture.svg" alt=""></object>
+  </div>
+
+  <section style="display:grid;gap:16px">
+    <h2>What happens when someone asks a question</h2>
+    <ol class="steps">
+      <li><div class="num">1</div><div><strong>Slack delivers the message</strong><p>Over Socket Mode, a connection the bot opens, so the server needs no public endpoint. <code>main.py</code> posts “WineBuddy is working on it...” in the message's thread. For a reply in a thread, it reads the last 20 thread messages with <code>conversations.replies</code>.</p></div></li>
+      <li><div class="num">2</div><div><strong>main.py hands the question to ask.py</strong><p>Along with the thread so far as earlier messages, so Claude can answer follow-ups like “which of those is ready?”</p></div></li>
+      <li><div class="num">3</div><div><strong>The cellar is refreshed</strong><p><code>winebuddy --refresh</code> brings the cellar up to date. Claude gets the refresh output so it can mention new or finished bottles.</p></div></li>
+      <li><div class="num">4</div><div><strong>Claude reads the question</strong><p>Sonnet 5.5, with the winebuddy skill (<code>SKILL.md</code>) and the bot's Slack formatting rules as its system prompt, and two tools it can call.</p></div></li>
+      <li><div class="num">5</div><div><strong>Claude looks bottles up</strong><p>Each <code>query_wines</code> or <code>discover</code> call runs the winebuddy CLI and returns JSON. Steps 4 and 5 repeat until Claude answers, up to 10 rounds.</p></div></li>
+      <li><div class="num">6</div><div><strong>The answer streams into the thread</strong><p>The “working on it” message is updated every 2 seconds as text arrives, then once more with the full answer.</p></div></li>
+    </ol>
+  </section>
+
+  <div class="notes">
+    <section>
+      <h2>Conversations</h2>
+      <p>A new message in the channel or a DM starts a conversation. Replies in its thread continue it. Nothing is stored: the history is read back from Slack each time, capped at 20 messages.</p>
+    </section>
+    <section>
+      <h2>Guardrails</h2>
+      <ul>
+        <li>Claude has no shell. Its tools run the winebuddy CLI with fixed arguments.</li>
+        <li>One question makes at most 10 rounds of tool calls.</li>
+        <li>5 seconds between requests per person, 2,000 characters per message.</li>
+        <li>Messages from bots are ignored, so it never replies to itself.</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Deploys</h2>
+      <p><code>deploy.sh</code> copies the code to the container, pulls the winebuddy repo into <code>~/.winebuddy</code>, runs <code>uv sync</code> and restarts the service. Secrets come from <code>deployment.env</code>, generated from 1Password. The cellar data is kept up to date separately by winebuddy-sync-with-cellartracker.</p>
+    </section>
+    <section>
+      <h2>Related repos</h2>
+      <p>How the CLI and the sync work is documented in their own repos.</p>
+      <ul>
+        <li><a href="https://github.com/jasondchambers/winebuddy">winebuddy</a>: the cellar CLI and its skill</li>
+        <li><a href="https://github.com/jasondchambers/winebuddy-sync-with-cellartracker">winebuddy-sync-with-cellartracker</a>: syncing the cellar from CellarTracker</li>
+      </ul>
+    </section>
+  </div>
+</div>
+</body>
+</html>
