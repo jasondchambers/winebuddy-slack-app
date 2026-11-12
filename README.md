@@ -1,6 +1,8 @@
 # WineBuddy Slack App
 
-A Slack bot that lets you query your personal wine cellar using natural language. Powered by Claude and the [winebuddy](https://github.com/jasondchambers/winebuddy) skill.
+A Slack bot that lets you query your personal wine cellar using natural language. It answers by calling the Claude API, with the
+[winebuddy](https://github.com/jasondchambers/winebuddy) skill as its instructions and tools that look the cellar up
+through the winebuddy CLI.
 
 ![WineBuddy Slack App](example.png)
 
@@ -14,8 +16,9 @@ A Slack bot that lets you query your personal wine cellar using natural language
 
 - Python 3.10+
 - [uv](https://github.com/astral-sh/uv) package manager
-- Claude CLI installed and configured
-- [winebuddy](https://github.com/jasondchambers/winebuddy) skill installed
+- A Claude API key
+- [winebuddy](https://github.com/jasondchambers/winebuddy) cloned to `~/.winebuddy` (or set `WINEBUDDY_DIR`), with your
+  `cellar.csv` in it. The bot reads its `SKILL.md` directly, so it doesn't need to be installed as a Claude Code skill
 - A Slack workspace where you can install apps
 
 ### Installation
@@ -65,6 +68,12 @@ Or with 1Password for secrets injection:
 op run --environment $OP_ENVIRONMENT_ID -- uv run python main.py
 ```
 
+To ask a question the way the bot does, without Slack (logs each lookup and the tokens used):
+
+```bash
+uv run python ask.py "What French wines do I have?"
+```
+
 Then message the bot in Slack:
 
 > What French wines do I have?
@@ -77,7 +86,9 @@ Then message the bot in Slack:
 
 - **Input sanitization** - Strips control characters, enforces length limits
 - **Rate limiting** - 5 second cooldown between requests per user
-- **Stdin isolation** - User input passed via stdin, not command arguments
+- **No shell access** - Claude's only tools are `query_wines` and `discover`, which run `winebuddy.py` with an
+  argument list (no shell) and its parameterized queries
+- **Bounded cost** - One question can make at most 10 rounds of tool calls
 - **Bot loop prevention** - Ignores messages from other bots
 
 ## Configuration
@@ -91,11 +102,13 @@ Then message the bot in Slack:
 ## Architecture
 
 ```
-Slack (Socket Mode) → main.py → Claude Code → /winebuddy skill → Response
+Slack (Socket Mode) → main.py → ask.py → Claude API (Sonnet) ⇄ query_wines / discover → winebuddy.py → cellar.db
 ```
 
 The app uses Slack's Socket Mode for real-time communication without needing a public HTTP endpoint.
 
-The `/winebuddy` skill handles wine cellar queries via Claude. See the [winebuddy repository](https://github.com/jasondchambers/winebuddy) for skill installation and configuration.
+Before each question, `ask.py` runs `winebuddy.py --refresh` so the database matches `cellar.csv`, and passes what
+changed to Claude to report. Claude gets the winebuddy skill (`SKILL.md`, without its front matter, plus
+bot-specific instructions) as its system prompt. See the [winebuddy repository](https://github.com/jasondchambers/winebuddy) for skill installation and configuration.
 The cellar inventory is still managed by the CellarTracker app. Winebuddy is kept in sync periodically by 
 [winebuddy-sync-with-cellartracker](https://github.com/jasondchambers/winebuddy-sync-with-cellartracker)

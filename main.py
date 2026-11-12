@@ -1,12 +1,13 @@
-import json
 import logging
 import os
 import re
-import subprocess
 from collections import defaultdict
 from time import time, monotonic
+import anthropic
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+
+from ask import ask, CellarUnavailable
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,12 +46,21 @@ def is_rate_limited(user_id: str) -> bool:
     return False
 
 
+def slack_bold(text: str) -> str:
+    """Turn any markdown **bold** Claude writes into Slack's *bold*."""
+    return re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)
+
+
+PENDING_TEXT = "WineBuddy is working on it..."
+
+
 def thread_history(client, channel: str, thread_ts: str, before_ts: str) -> list[dict]:
-    """The thread's messages before before_ts, as {"role", "content"} turns.
+    """The thread's messages before before_ts, as Claude messages for ask().
 
     The bot's messages are the assistant's and everyone else's the user's. Consecutive messages from one
-    side are joined, and only the last MAX_HISTORY_MESSAGES are kept. The bot's "working on it"
-    placeholder is skipped, since it is not part of the conversation.
+    side are joined, since the roles must alternate, and only the last MAX_HISTORY_MESSAGES are kept.
+    The bot's "working on it" placeholder is skipped, and the history must start with a user message, so
+    one that starts with the bot's is introduced with a placeholder rather than losing what the bot said.
     """
     replies = client.conversations_replies(channel=channel, ts=thread_ts)["messages"]
     history = []
@@ -64,26 +74,12 @@ def thread_history(client, channel: str, thread_ts: str, before_ts: str) -> list
             history[-1]["content"] += "\n\n" + m["text"]
         else:
             history.append({"role": role, "content": m["text"]})
-    return history[-MAX_HISTORY_MESSAGES:]
 
+    history = history[-MAX_HISTORY_MESSAGES:]
+    if history and history[0]["role"] == "assistant":
+        history.insert(0, {"role": "user", "content": "(WineBuddy posted this to the channel.)"})
+    return history
 
-def build_prompt(text: str, history: list[dict]) -> str:
-    """The question for Claude, preceded by the thread so far when it is a follow-up.
-
-    Each Claude invocation is a fresh session, so the earlier conversation is sent as a transcript.
-    """
-    if not history:
-        return text
-    names = {"user": "User", "assistant": "WineBuddy"}
-    transcript = "\n\n".join(f"{names[m['role']]}: {m['content']}" for m in history)
-    return (
-        "This is a follow-up in an ongoing Slack conversation. The conversation so far:\n\n"
-        f"<conversation>\n{transcript}\n</conversation>\n\n"
-        f"Answer the user's new message, using the conversation for context:\n\n{text}"
-    )
-
-
-PENDING_TEXT = "WineBuddy is working on it..."
 
 # Initialize the app with your tokens
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
@@ -92,7 +88,7 @@ app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 # Event handler for messages
 @app.event("message")
 def handle_message(event, say, client, logger):
-    """Invoke Claude Code with the message and reply with its answer in the message's thread.
+    """Ask Claude the message and reply with its answer in the message's thread.
 
     Each thread is a conversation: a reply in one is asked along with the thread so far.
     """
@@ -126,95 +122,35 @@ def handle_message(event, say, client, logger):
     pending_message = say(PENDING_TEXT, thread_ts=thread_ts)
     ts = pending_message["ts"]
 
-    # Invoke Claude Code CLI with streaming JSON output
+    # Ask Claude, updating the Slack message as the answer streams in
     STREAM_UPDATE_INTERVAL = 2.0  # seconds between Slack message updates
     t_start = time()
-    response = ""
+    last_update = monotonic()
 
-    proc = None
+    def show_progress(answer: str):
+        nonlocal last_update
+        if monotonic() - last_update >= STREAM_UPDATE_INTERVAL:
+            client.chat_update(channel=channel, ts=ts, text=slack_bold(answer))
+            last_update = monotonic()
+
     try:
         history = thread_history(client, channel, thread_ts, event["ts"]) if event.get("thread_ts") else []
         logger.info(f"Asking with {len(history)} earlier messages from the thread")
-        prompt = build_prompt(text, history)
-
-        proc = subprocess.Popen(
-            [
-                "claude",
-                "--model", "sonnet",
-                "--allowedTools", "Bash(*)",
-                "--output-format", "stream-json",
-                "--verbose",
-                "-p", "/winebuddy Format output for Slack mrkdwn, not markdown.",
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-
-        # Send input and close stdin
-        proc.stdin.write(prompt)
-        proc.stdin.close()
-
-        # Parse streaming JSON events and update Slack with assistant text
-        current_text = ""
-        last_update = monotonic()
-        proc_start = monotonic()
-
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            elapsed = monotonic() - proc_start
-            event_type = event.get("type", "unknown")
-            event_subtype = event.get("subtype", "")
-            label = f"{event_type}/{event_subtype}" if event_subtype else event_type
-
-            # Extract text from assistant messages as they arrive
-            if event_type == "assistant":
-                msg = event.get("message", {})
-                for block in msg.get("content", []):
-                    if block.get("type") == "text":
-                        current_text = block["text"]
-                logger.info(f"[{elapsed:.1f}s] {label}: {current_text[:120]}")
-            elif event_type == "result":
-                current_text = event.get("result", current_text)
-                logger.info(f"[{elapsed:.1f}s] {label}: {current_text[:120]}")
-            else:
-                logger.info(f"[{elapsed:.1f}s] {label}")
-
-            # Periodically update Slack with progress
-            now = monotonic()
-            if current_text and now - last_update >= STREAM_UPDATE_INTERVAL:
-                client.chat_update(channel=channel, ts=ts, text=current_text)
-                last_update = now
-
-        proc.wait(timeout=300)
-        response = current_text or "No response from Claude"
-
-        stderr_out = proc.stderr.read()
-        if stderr_out:
-            logger.warning(f"Claude stderr: {stderr_out}")
-
-    except subprocess.TimeoutExpired:
-        logger.error(f"Claude timed out for user {user}")
-        if proc:
-            proc.kill()
-        response = "Request timed out"
+        response = ask(text, show_progress, history)
+    except CellarUnavailable as e:
+        logger.error(f"Cellar unavailable for user {user}: {e}")
+        response = f"Sorry, {e}."
+    except anthropic.APIError as e:
+        logger.error(f"Claude API error for user {user}: {e}")
+        response = "Sorry, I couldn't reach Claude. Please try again in a minute."
     except Exception as e:
         logger.error(f"Error invoking Claude: {e}")
         response = f"Error: {e}"
 
-    t_claude = time() - t_start
-    logger.info(f"Claude subprocess took {t_claude:.2f}s for user {user}")
+    logger.info(f"Claude took {time() - t_start:.2f}s for user {user}")
 
     # Final update with complete response
-    client.chat_update(channel=channel, ts=ts, text=response)
+    client.chat_update(channel=channel, ts=ts, text=slack_bold(response))
 
 
 # Event handler for app mentions (@YourApp)

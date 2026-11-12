@@ -62,7 +62,7 @@ ssh root@<lxc-ip>
 bash /opt/winebuddy-slack-app/deploy/setup-lxc.sh
 ```
 
-This installs Node.js 22, Claude Code CLI, uv, creates the `winebuddy` system user, and enables the systemd unit.
+This installs uv, creates the `winebuddy` system user, and enables the systemd unit.
 
 **Note:** The setup script installs `uv` as root. It must also be installed for the `winebuddy` user:
 
@@ -70,13 +70,14 @@ This installs Node.js 22, Claude Code CLI, uv, creates the `winebuddy` system us
 su - winebuddy -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
 ```
 
-### 5. Configure Claude Code
+### 5. Check the Claude API key
 
-Still as the `winebuddy` user, verify Claude Code works with the deploymnent.env file
+Once the cellar data is deployed (see below), check as the `winebuddy` user that the bot can reach the Claude
+API with the key in deployment.env and look the cellar up:
 
 ```bash
 cd /opt/winebuddy-slack-app
-claude --version
+(set -a; source deployment.env; ~/.local/bin/uv run python ask.py "What French wines do I have?")
 ```
 
 ### 6. Fix file ownership
@@ -135,7 +136,8 @@ From your local dev machine:
 ./deploy/deploy.sh <lxc-ip>
 ```
 
-This rsyncs the code, runs `uv sync`, and restarts the service.
+This rsyncs the code, pulls the latest winebuddy (CLI and `SKILL.md`) into `~/.winebuddy`, runs `uv sync`, and
+restarts the service.
 
 ---
 
@@ -152,9 +154,9 @@ Common causes:
 - Permission denied on `.venv` — run `chown -R winebuddy:winebuddy /opt/winebuddy-slack-app` as root
 
 
-### Winebuddy skill not working
+### Winebuddy lookups not working
 
-The skill auto-clones `github.com/jasondchambers/winebuddy` to `~/.winebuddy` on first invocation. Verify the `winebuddy` user has internet access and git works:
+The bot reads `SKILL.md` and runs `winebuddy.py` from `~/.winebuddy`, which `deploy.sh` clones and pulls. Verify the `winebuddy` user has internet access and git works:
 
 ```bash
 su - winebuddy -c "git ls-remote https://github.com/jasondchambers/winebuddy.git"
