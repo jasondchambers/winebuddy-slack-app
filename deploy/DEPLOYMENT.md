@@ -47,10 +47,13 @@ Install `rsync` on the container first (not included in the base Debian template
 ssh root@<lxc-ip> "apt-get update && apt-get install -y rsync"
 ```
 
-Then rsync the code from your dev machine:
+Then rsync the files the bot runs from (the same allowlist `deploy.sh` uses) from your dev machine:
 
 ```bash
-rsync -avz . root@<lxc-ip>:/opt/winebuddy-slack-app/
+rsync -avz --include '/main.py' --include '/ask.py' --include '/run.sh' --include '/pyproject.toml' \
+  --include '/uv.lock' --include '/.python-version' --include '/deployment.env' \
+  --include '/deploy/' --include '/deploy/**' --exclude '*' \
+  ./ root@<lxc-ip>:/opt/winebuddy-slack-app/
 ```
 
 ### 4. Run the provisioning script
@@ -77,12 +80,12 @@ API with the key in deployment.env and look the cellar up:
 
 ```bash
 cd /opt/winebuddy-slack-app
-(set -a; source deployment.env; ~/.local/bin/uv run python ask.py "What French wines do I have?")
+(set -a; source deployment.env; ~/.local/bin/uv run --no-dev python ask.py "What French wines do I have?")
 ```
 
 ### 6. Fix file ownership
 
-Ensure the `winebuddy` user owns the app directory (including any `.venv` created by the initial rsync):
+Ensure the `winebuddy` user owns the app directory (including the `.venv` uv creates):
 
 ```bash
 exit  # back to root
@@ -136,8 +139,8 @@ From your local dev machine:
 ./deploy/deploy.sh <lxc-ip>
 ```
 
-This rsyncs the code, pulls the latest winebuddy (CLI and `SKILL.md`) into `~/.winebuddy`, runs `uv sync`, and
-restarts the service.
+This rsyncs the code, pulls the latest winebuddy (CLI and `SKILL.md`) into `~/.winebuddy`, runs `uv sync --no-dev`
+(runtime dependencies only; the dev tools are for local checks and CI), and restarts the service.
 
 ---
 

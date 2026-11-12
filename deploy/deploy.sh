@@ -18,14 +18,14 @@ REMOTE_DIR="/opt/winebuddy-slack-app"
 
 echo "Deploying to ${HOST}:${REMOTE_DIR}..."
 
+# Only the files the bot runs from (an allowlist, so tests, caches and stray files stay behind).
+# --delete removes files dropped from these paths; anything else on the server, like its .venv, is left alone.
 rsync -avz --delete \
-  --exclude '.venv' \
-  --exclude '.git' \
-  --exclude '__pycache__' \
-  --exclude '.claude' \
-  --exclude '*.png' \
-  --exclude '*.pptx' \
-  . "root@${HOST}:${REMOTE_DIR}/"
+  --include '/main.py' --include '/ask.py' --include '/run.sh' \
+  --include '/pyproject.toml' --include '/uv.lock' --include '/.python-version' \
+  --include '/deployment.env' --include '/deploy/' --include '/deploy/**' \
+  --exclude '*' \
+  ./ "root@${HOST}:${REMOTE_DIR}/"
 
 echo "Syncing dependencies and restarting service..."
 ssh "root@${HOST}" bash -c "'
@@ -33,7 +33,7 @@ ssh "root@${HOST}" bash -c "'
   chown -R winebuddy:winebuddy ${REMOTE_DIR}
   su - winebuddy -c \"[ -d ~/.winebuddy ] || git clone https://github.com/jasondchambers/winebuddy.git ~/.winebuddy\"
   su - winebuddy -c \"cd ~/.winebuddy && git pull --ff-only\"
-  su - winebuddy -c \"cd ${REMOTE_DIR} && /home/winebuddy/.local/bin/uv sync\"
+  su - winebuddy -c \"cd ${REMOTE_DIR} && /home/winebuddy/.local/bin/uv sync --locked --no-dev\"
   systemctl restart winebuddy
   systemctl status winebuddy --no-pager
 '"

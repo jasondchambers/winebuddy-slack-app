@@ -4,4 +4,4 @@ source deployment.env
 export SLACK_BOT_TOKEN
 export SLACK_APP_TOKEN
 export ANTHROPIC_API_KEY
-/home/winebuddy/.local/bin/uv run python main.py
+/home/winebuddy/.local/bin/uv run --locked --no-dev python main.py
