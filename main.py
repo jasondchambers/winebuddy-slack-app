@@ -127,10 +127,10 @@ def answer_question(client, event: dict, question: str, on_text: Callable[[str],
         logger.info(f"Asking with {len(history)} earlier messages from the thread")
         answer = ask(question, on_text, history)
     except CellarUnavailable as e:
-        logger.error(f"Cellar unavailable for user {user}: {e}")
+        logger.exception(f"Cellar unavailable for user {user}")
         answer = f"Sorry, {e}."
-    except anthropic.APIError as e:
-        logger.error(f"Claude API error for user {user}: {e}")
+    except anthropic.APIError:
+        logger.exception(f"Claude API error for user {user}")
         answer = "Sorry, I couldn't reach Claude. Please try again in a minute."
     except Exception:
         # Log the details, but don't post them: they can include paths and commands from the server

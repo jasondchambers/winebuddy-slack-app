@@ -53,6 +53,7 @@ select = [
     "ARG",      # unused arguments
     "RET",      # return statements
     "PIE",      # misc. tidiness
+    "TRY400",   # log exceptions with their traceback
     "PLR1702",  # too many nested blocks (preview)
     "PLR0916",  # too many boolean expressions (preview)
 ]
