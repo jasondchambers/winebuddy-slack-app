@@ -1,7 +1,7 @@
 [project]
 name = "winebuddy-slack-app"
 version = "0.1.0"
-description = "Add your description here"
+description = "Slack bot that answers questions about a wine cellar using the Claude API and the winebuddy CLI"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
