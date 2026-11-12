@@ -24,5 +24,5 @@ uv run python main.py
 ## Architecture
 
 Single-file Slack bot (`main.py`) using slack-bolt's Socket Mode adapter. The app listens for:
-- `message` events - Echoes back user messages (ignores bot messages to prevent loops)
+- `message` events - Asks Claude Code (`claude -p /winebuddy`) and replies in the message's thread (ignores bot messages to prevent loops). Each thread is a conversation: a reply in a thread is asked along with the thread so far (read back via `conversations.replies`, last `MAX_HISTORY_MESSAGES`), sent as a transcript in the prompt. Nothing is stored.
 - `app_mention` events - Responds when the bot is @mentioned

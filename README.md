@@ -86,6 +86,7 @@ Then message the bot in Slack:
 |----------|---------|-------------|
 | `MAX_MESSAGE_LENGTH` | 2000 | Maximum characters per message |
 | `RATE_LIMIT_SECONDS` | 5 | Cooldown between requests per user |
+| `MAX_HISTORY_MESSAGES` | 20 | Earlier thread messages sent with a follow-up question |
 
 ## Architecture
 

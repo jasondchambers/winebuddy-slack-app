@@ -12,6 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 MAX_MESSAGE_LENGTH = 2000
 RATE_LIMIT_SECONDS = 5
+MAX_HISTORY_MESSAGES = 20  # earlier thread messages sent with a question, to bound its context
 
 # Track last request time per user
 user_last_request: dict[str, float] = defaultdict(float)
@@ -44,6 +45,46 @@ def is_rate_limited(user_id: str) -> bool:
     return False
 
 
+def thread_history(client, channel: str, thread_ts: str, before_ts: str) -> list[dict]:
+    """The thread's messages before before_ts, as {"role", "content"} turns.
+
+    The bot's messages are the assistant's and everyone else's the user's. Consecutive messages from one
+    side are joined, and only the last MAX_HISTORY_MESSAGES are kept. The bot's "working on it"
+    placeholder is skipped, since it is not part of the conversation.
+    """
+    replies = client.conversations_replies(channel=channel, ts=thread_ts)["messages"]
+    history = []
+    for m in replies:
+        if float(m["ts"]) >= float(before_ts) or not m.get("text"):
+            continue
+        role = "assistant" if m.get("bot_id") else "user"
+        if role == "assistant" and m["text"] == PENDING_TEXT:
+            continue
+        if history and history[-1]["role"] == role:
+            history[-1]["content"] += "\n\n" + m["text"]
+        else:
+            history.append({"role": role, "content": m["text"]})
+    return history[-MAX_HISTORY_MESSAGES:]
+
+
+def build_prompt(text: str, history: list[dict]) -> str:
+    """The question for Claude, preceded by the thread so far when it is a follow-up.
+
+    Each Claude invocation is a fresh session, so the earlier conversation is sent as a transcript.
+    """
+    if not history:
+        return text
+    names = {"user": "User", "assistant": "WineBuddy"}
+    transcript = "\n\n".join(f"{names[m['role']]}: {m['content']}" for m in history)
+    return (
+        "This is a follow-up in an ongoing Slack conversation. The conversation so far:\n\n"
+        f"<conversation>\n{transcript}\n</conversation>\n\n"
+        f"Answer the user's new message, using the conversation for context:\n\n{text}"
+    )
+
+
+PENDING_TEXT = "WineBuddy is working on it..."
+
 # Initialize the app with your tokens
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 
@@ -51,7 +92,10 @@ app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 # Event handler for messages
 @app.event("message")
 def handle_message(event, say, client, logger):
-    """Invoke Claude Code with the message and return the response"""
+    """Invoke Claude Code with the message and reply with its answer in the message's thread.
+
+    Each thread is a conversation: a reply in one is asked along with the thread so far.
+    """
 
     # Ignore bot messages to prevent infinite loops
     if event.get("bot_id"):
@@ -59,11 +103,12 @@ def handle_message(event, say, client, logger):
 
     user = event.get("user")
     channel = event.get("channel")
+    thread_ts = event.get("thread_ts") or event["ts"]
 
     # Check rate limit
     if is_rate_limited(user):
         logger.warning(f"Rate limited user {user}")
-        say(f"Please wait {RATE_LIMIT_SECONDS} seconds between requests.")
+        say(f"Please wait {RATE_LIMIT_SECONDS} seconds between requests.", thread_ts=thread_ts)
         return
 
     # Get and sanitize the message text
@@ -72,13 +117,13 @@ def handle_message(event, say, client, logger):
 
     if text is None:
         logger.warning(f"Invalid input from {user}: empty or too long")
-        say("Sorry, your message was empty or too long (max 2000 characters).")
+        say("Sorry, your message was empty or too long (max 2000 characters).", thread_ts=thread_ts)
         return
 
     logger.info(f"Received message from {user}: {text}")
 
     # Send immediate feedback
-    pending_message = say("WineBuddy is working on it...")
+    pending_message = say(PENDING_TEXT, thread_ts=thread_ts)
     ts = pending_message["ts"]
 
     # Invoke Claude Code CLI with streaming JSON output
@@ -86,7 +131,12 @@ def handle_message(event, say, client, logger):
     t_start = time()
     response = ""
 
+    proc = None
     try:
+        history = thread_history(client, channel, thread_ts, event["ts"]) if event.get("thread_ts") else []
+        logger.info(f"Asking with {len(history)} earlier messages from the thread")
+        prompt = build_prompt(text, history)
+
         proc = subprocess.Popen(
             [
                 "claude",
@@ -103,7 +153,7 @@ def handle_message(event, say, client, logger):
         )
 
         # Send input and close stdin
-        proc.stdin.write(text)
+        proc.stdin.write(prompt)
         proc.stdin.close()
 
         # Parse streaming JSON events and update Slack with assistant text
@@ -153,7 +203,8 @@ def handle_message(event, say, client, logger):
 
     except subprocess.TimeoutExpired:
         logger.error(f"Claude timed out for user {user}")
-        proc.kill()
+        if proc:
+            proc.kill()
         response = "Request timed out"
     except Exception as e:
         logger.error(f"Error invoking Claude: {e}")
