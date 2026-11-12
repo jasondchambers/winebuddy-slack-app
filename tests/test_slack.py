@@ -1,14 +1,14 @@
 """Steps for slack_messages.feature and thread_history.feature (main.py), with Slack, Claude and the clock faked."""
 
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
 import anthropic
 import httpx2
 import pytest
+from conftest import unescape
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from conftest import unescape
 import main
 from ask import CellarUnavailable
 
@@ -18,6 +18,7 @@ CHANNEL = "C1"
 
 
 # --- Fakes -----------------------------------------------------------------------------------------------------------
+
 
 class FakeClock:
     """Stands in for time() and monotonic(); only moves when a step moves it."""
@@ -33,9 +34,9 @@ class FakeSlack:
     """The say() and client the handler is given, recording what the bot posts and updates."""
 
     def __init__(self):
-        self.posts: list[dict] = []    # {"text", "thread_ts", "ts"}
+        self.posts: list[dict] = []  # {"text", "thread_ts", "ts"}
         self.updates: list[dict] = []  # {"channel", "ts", "text"}
-        self.thread: list[dict] = []   # what conversations.replies returns
+        self.thread: list[dict] = []  # what conversations.replies returns
         self._next_ts = 0
 
     def new_ts(self) -> str:
@@ -50,7 +51,7 @@ class FakeSlack:
     def chat_update(self, channel, ts, text):
         self.updates.append({"channel": channel, "ts": ts, "text": text})
 
-    def conversations_replies(self, channel, ts):
+    def conversations_replies(self, **_):
         return {"messages": list(self.thread)}
 
 
@@ -64,7 +65,7 @@ class FakeAsk:
         self.stream: list[tuple[float, str]] = []  # (seconds after asking, answer so far)
         self.error: Exception | None = None
 
-    def __call__(self, question, on_text=lambda text: None, history=()):
+    def __call__(self, question, on_text=lambda _: None, history=()):
         self.calls.append((question, list(history)))
         start = self.clock.now
         for seconds, text in self.stream:
@@ -89,7 +90,7 @@ def slack():
     return FakeSlack()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def fake_ask(monkeypatch, clock):
     fake = FakeAsk(clock)
     monkeypatch.setattr(main, "ask", fake)
@@ -108,16 +109,18 @@ def post(slack, user, text, thread_ts=None, bot=False) -> dict:
     if thread_ts:
         event["thread_ts"] = thread_ts
         slack.thread.append(event)  # conversations.replies includes the message being answered
-    main.handle_message(event, slack.say, slack, logging.getLogger("test"))
+    # Bolt types the @app.event decorator as possibly returning None; it returns the handler itself
+    main.handle_message(event, slack.say, slack)  # pyright: ignore[reportOptionalCall]
     return event
 
 
 def table_rows(datatable) -> list[dict]:
     header, *rows = datatable
-    return [dict(zip(header, (unescape(c) for c in row))) for row in rows]
+    return [dict(zip(header, (unescape(c) for c in row), strict=True)) for row in rows]
 
 
 # --- Given -----------------------------------------------------------------------------------------------------------
+
 
 @given(parsers.parse('Claude answers "{answer}"'))
 def claude_answers(fake_ask, answer):
@@ -138,7 +141,8 @@ def cellar_missing(fake_ask):
 @given("the Claude API can't be reached")
 def api_down(fake_ask):
     fake_ask.error = anthropic.APIConnectionError(
-        request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"))
+        request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    )
 
 
 @given(parsers.parse('asking fails unexpectedly with "{error}"'))
@@ -149,8 +153,10 @@ def unexpected_error(fake_ask, error):
 @given(parsers.parse('a thread where "{user}" asked "{question}" and the bot answered "{answer}"'))
 def a_thread(slack, ctx, user, question, answer):
     root = {"channel": CHANNEL, "ts": slack.new_ts(), "user": user, "text": question}
-    slack.thread += [root, {"channel": CHANNEL, "ts": slack.new_ts(), "bot_id": "BBOT", "text": answer,
-                            "thread_ts": root["ts"]}]
+    slack.thread += [
+        root,
+        {"channel": CHANNEL, "ts": slack.new_ts(), "bot_id": "BBOT", "text": answer, "thread_ts": root["ts"]},
+    ]
     ctx["thread_ts"] = root["ts"]
 
 
@@ -170,29 +176,30 @@ def long_thread(slack, count, user):
 
 # --- When ------------------------------------------------------------------------------------------------------------
 
+
 @when(parsers.parse('"{user}" posts "{text}"'))
-def user_posts(slack, ctx, fake_ask, user, text):
+def user_posts(slack, ctx, user, text):
     ctx["thread_ts"] = post(slack, user, unescape(text))["ts"]
 
 
 @when(parsers.parse('"{user}" posts "{text}" {seconds:g} seconds later'))
-def user_posts_later(slack, ctx, fake_ask, clock, user, text, seconds):
+def user_posts_later(slack, ctx, clock, user, text, seconds):
     clock.now += seconds
     ctx["thread_ts"] = post(slack, user, unescape(text))["ts"]
 
 
 @when(parsers.parse('"{user}" posts a message of {length:d} characters'))
-def user_posts_long(slack, ctx, fake_ask, user, length):
+def user_posts_long(slack, ctx, user, length):
     ctx["thread_ts"] = post(slack, user, "a" * length)["ts"]
 
 
 @when(parsers.parse('"{user}" replies in the thread "{text}"'))
-def user_replies(slack, ctx, fake_ask, user, text):
+def user_replies(slack, ctx, user, text):
     post(slack, user, unescape(text), thread_ts=ctx["thread_ts"])
 
 
 @when(parsers.parse('a bot posts "{text}"'))
-def bot_posts(slack, fake_ask, text):
+def bot_posts(slack, text):
     post(slack, None, text, bot=True)
 
 
@@ -208,10 +215,12 @@ def history_before_new(slack, ctx):
 
 # --- Then ------------------------------------------------------------------------------------------------------------
 
+
 @then(parsers.parse('the bot posts "{text}" in the thread'))
 def bot_posts_in_thread(slack, ctx, text):
     assert {"text": unescape(text), "thread_ts": ctx["thread_ts"]} in [
-        {"text": p["text"], "thread_ts": p["thread_ts"]} for p in slack.posts], slack.posts
+        {"text": p["text"], "thread_ts": p["thread_ts"]} for p in slack.posts
+    ], slack.posts
 
 
 @then(parsers.parse('the last thing the bot posts is "{text}"'))

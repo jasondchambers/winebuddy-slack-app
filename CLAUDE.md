@@ -20,7 +20,15 @@ uv run python ask.py "What French wines do I have?"
 
 # Run the tests (no credentials needed; Slack, Claude and the winebuddy CLI are faked)
 uv run pytest
+
+# Run the code quality checks CI runs (formatting, lint, types, complexity); fix formatting with `uv run ruff format`
+uv run scripts/check.sh
+
+# Rank files by commits x complexity, to see where readability matters most
+uv run scripts/hotspots.py
 ```
+
+Code quality limits, enforced in CI by `scripts/check.sh` (settings in `pyproject.toml`), are modelled on CodeScene's Code Health biomarkers: per function, cyclomatic complexity ≤ 10 (ruff, lizard), cognitive complexity ≤ 10 (complexipy), ≤ 50 lines and ≤ 4 arguments (lizard), nesting ≤ 3 and conditions of ≤ 3 terms (ruff). Plus ruff formatting and lint (including naming and pep257 docstrings) and pyright in basic mode. Keep new code within these limits rather than adding ignores.
 
 Tests are Gherkin scenarios (pytest-bdd) in `tests/features/`, with step definitions in `tests/test_slack.py` (main.py) and `tests/test_ask.py` (ask.py). `tests/conftest.py` stubs the Slack token check that runs when main.py is imported. CI (`.github/workflows/sonar.yml`) runs them with coverage before the SonarQube Cloud scan.
 

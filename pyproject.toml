@@ -11,9 +11,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "complexipy>=8.3.0",
+    "lizard>=1.26.0",
+    "pyright[nodejs]>=1.1.414",
     "pytest>=9.2.0",
     "pytest-bdd>=9.0.1",
     "pytest-cov>=7.1.0",
+    "ruff>=0.17.5",
 ]
 
 [tool.pytest.ini_options]
@@ -24,3 +28,61 @@ pythonpath = ["."]
 source = ["."]
 omit = ["tests/*", ".venv/*"]
 relative_files = true
+
+# Code quality: run everything with scripts/check.sh. The complexity limits are modelled on
+# CodeScene's Code Health biomarkers (complex method, deep nesting, complex conditional, many arguments);
+# lizard and complexipy in scripts/check.sh add function length and cognitive complexity.
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import order
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "SIM",      # simplify
+    "N",        # naming
+    "C4",       # comprehensions
+    "C90",      # cyclomatic complexity
+    "PL",       # pylint
+    "RUF",      # ruff
+    "D",        # docstrings
+    "ARG",      # unused arguments
+    "RET",      # return statements
+    "PIE",      # misc. tidiness
+    "PLR1702",  # too many nested blocks (preview)
+    "PLR0916",  # too many boolean expressions (preview)
+]
+ignore = [
+    "N818",  # exception names needn't end in "Error" (CellarUnavailable reads better)
+]
+preview = true
+explicit-preview-rules = true
+
+[tool.ruff.lint.per-file-ignores]
+# pytest-bdd step functions take their fixtures and step values as arguments
+"tests/*" = ["D1", "PLR0913", "PLR0917", "PLR2004"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 4
+max-branches = 10
+max-returns = 4
+max-statements = 30
+max-nested-blocks = 3
+max-bool-expr = 3
+
+[tool.pyright]
+include = ["main.py", "ask.py", "scripts", "tests"]
+pythonVersion = "3.14"
+typeCheckingMode = "basic"
+venvPath = "."
+venv = ".venv"

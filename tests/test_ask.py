@@ -1,22 +1,23 @@
 """Steps for answering.feature and winebuddy_cli.feature (ask.py), with Claude and the winebuddy CLI faked."""
 
 import copy
-from datetime import date
 import json
 import shlex
 import subprocess
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
+from conftest import unescape
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from conftest import unescape
 import ask
 
 scenarios("features/answering.feature", "features/winebuddy_cli.feature")
 
 
 # --- Fakes -----------------------------------------------------------------------------------------------------------
+
 
 class FakeStream:
     """What client.beta.messages.stream() returns: streams a turn's text, then gives the whole message."""
@@ -37,8 +38,10 @@ class FakeStream:
     def get_final_message(self):
         text = "".join(self.turn["chunks"])
         content = [SimpleNamespace(type="text", text=text)] if text else []
-        content += [SimpleNamespace(type="tool_use", id=f"toolu_{self.number}_{i}", name=name, input=params)
-                    for i, (name, params) in enumerate(self.turn["tool_calls"])]
+        content += [
+            SimpleNamespace(type="tool_use", id=f"toolu_{self.number}_{i}", name=name, input=params)
+            for i, (name, params) in enumerate(self.turn["tool_calls"])
+        ]
         stop_reason = self.turn["stop_reason"] or ("tool_use" if self.turn["tool_calls"] else "end_turn")
         usage = SimpleNamespace(input_tokens=100, cache_read_input_tokens=0, output_tokens=10)
         return SimpleNamespace(content=content, stop_reason=stop_reason, usage=usage)
@@ -82,7 +85,7 @@ class FakeWinebuddy:
         return result
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def claude(monkeypatch):
     fake = FakeClaude()
     monkeypatch.setattr(ask, "client", fake)
@@ -103,11 +106,11 @@ def ctx():
 
 def table_rows(datatable) -> list[dict]:
     header, *rows = datatable
-    return [dict(zip(header, (unescape(c) for c in row))) for row in rows]
+    return [dict(zip(header, (unescape(c) for c in row), strict=True)) for row in rows]
 
 
 def tool_results(claude) -> list[dict]:
-    """The tool results sent back to Claude after its first turn."""
+    """Return the tool results sent back to Claude after its first turn."""
     assert len(claude.requests) > 1, "no tool results were sent back to Claude"
     return claude.requests[1]["messages"][-1]["content"]
 
@@ -117,6 +120,7 @@ def system_text(claude) -> str:
 
 
 # --- Given -----------------------------------------------------------------------------------------------------------
+
 
 @given(parsers.parse('the skill file says "{text}"'))
 def skill_file(tmp_path, monkeypatch, text):
@@ -175,6 +179,11 @@ def claude_refuses(claude):
     claude.add_turn(stop_reason="refusal")
 
 
+@given(parsers.parse('Claude writes "{text}" and calls discover for "{field}"'))
+def claude_writes_and_discovers(claude, text, field):
+    claude.add_turn([text], [("discover", {"field": field})])
+
+
 @given(parsers.parse('Claude writes "{text}" and calls discover for "{field}" but hits the token limit'))
 def claude_hits_limit(claude, text, field):
     claude.add_turn([text], [("discover", {"field": field})], stop_reason="max_tokens")
@@ -202,6 +211,7 @@ def bot_in_venv(monkeypatch):
 
 # --- When ------------------------------------------------------------------------------------------------------------
 
+
 def ask_question(ctx, question, history=()):
     try:
         ctx["answer"] = ask.ask(question, ctx["streamed"].append, history)
@@ -210,12 +220,12 @@ def ask_question(ctx, question, history=()):
 
 
 @when(parsers.parse('I ask "{question}"'))
-def i_ask(ctx, claude, cli, question):
+def i_ask(ctx, question):
     ask_question(ctx, question)
 
 
 @when(parsers.parse('I ask "{question}" after this conversation:'))
-def i_ask_in_conversation(ctx, claude, cli, question, datatable):
+def i_ask_in_conversation(ctx, question, datatable):
     ask_question(ctx, question, table_rows(datatable))
 
 
@@ -236,6 +246,7 @@ def winebuddy_run(ctx, monkeypatch, tool, params):
 
 # --- Then ------------------------------------------------------------------------------------------------------------
 
+
 @then(parsers.parse('the answer is "{answer}"'))
 def answer_is(ctx, answer):
     assert ctx["error"] is None, ctx["error"]
@@ -245,7 +256,9 @@ def answer_is(ctx, answer):
 @then(parsers.parse('Claude was sent "{question}" after the refresh output "{report}"'))
 def sent_question(claude, question, report):
     assert claude.requests[0]["messages"][-1] == {
-        "role": "user", "content": f"<refresh_output>\n{report}\n</refresh_output>\n\n{question}"}
+        "role": "user",
+        "content": f"<refresh_output>\n{report}\n</refresh_output>\n\n{question}",
+    }
 
 
 @then(parsers.parse("Claude was sent these messages before the question:"))

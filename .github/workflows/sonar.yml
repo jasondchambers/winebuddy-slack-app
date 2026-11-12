@@ -23,6 +23,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
+      - name: Code quality checks
+        run: uv run --locked --no-build scripts/check.sh
+
       - name: Run tests with coverage
         run: uv run --locked --no-build pytest --cov --cov-report=xml
 

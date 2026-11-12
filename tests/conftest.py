@@ -12,9 +12,10 @@ from slack_sdk import WebClient
 os.environ.setdefault("SLACK_BOT_TOKEN", "xoxb-test")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test")
 
-with mock.patch.object(WebClient, "auth_test",
-                       return_value={"ok": True, "user_id": "UBOT", "bot_id": "BBOT", "team_id": "T1"}):
-    import main  # noqa: E402,F401  (imported here so every test module gets the stubbed App)
+with mock.patch.object(
+    WebClient, "auth_test", return_value={"ok": True, "user_id": "UBOT", "bot_id": "BBOT", "team_id": "T1"}
+):
+    import main  # noqa: F401  (imported here so every test module gets the stubbed App)
 
 
 def unescape(text: str) -> str:

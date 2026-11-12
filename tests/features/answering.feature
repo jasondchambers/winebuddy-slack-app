@@ -97,6 +97,12 @@ Feature: Answering a question with Claude and the winebuddy CLI
     Then the answer is "Let me check"
     And winebuddy was only run to refresh the cellar
 
+  Scenario: Text Claude wrote before a lookup is kept when its last turn adds none
+    Given Claude writes "Here are your regions." and calls discover for "regions"
+    And Claude replies ""
+    When I ask "What regions?"
+    Then the answer is "Here are your regions."
+
   Scenario: An empty answer says so
     Given Claude replies ""
     When I ask "Hi"
