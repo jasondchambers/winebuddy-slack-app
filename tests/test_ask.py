@@ -8,7 +8,7 @@ from datetime import date
 from types import SimpleNamespace
 
 import pytest
-from conftest import unescape
+from conftest import table_rows, unescape
 from pytest_bdd import given, parsers, scenarios, then, when
 
 import ask
@@ -88,7 +88,7 @@ class FakeWinebuddy:
 @pytest.fixture(autouse=True)
 def claude(monkeypatch):
     fake = FakeClaude()
-    monkeypatch.setattr(ask, "client", fake)
+    monkeypatch.setattr(ask, "claude", lambda: fake)
     return fake
 
 
@@ -102,11 +102,6 @@ def cli(monkeypatch):
 @pytest.fixture
 def ctx():
     return {"answer": None, "error": None, "streamed": [], "args": None, "run": None}
-
-
-def table_rows(datatable) -> list[dict]:
-    header, *rows = datatable
-    return [dict(zip(header, (unescape(c) for c in row), strict=True)) for row in rows]
 
 
 def tool_results(claude) -> list[dict]:

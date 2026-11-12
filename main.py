@@ -140,10 +140,6 @@ def answer_question(client, event: dict, question: str, on_text: Callable[[str],
     return answer
 
 
-app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
-
-
-@app.event("message")
 def handle_message(event, say, client):
     """Ask Claude the message and reply with its answer in the message's thread.
 
@@ -172,26 +168,14 @@ def handle_message(event, say, client):
     client.chat_update(channel=channel, ts=ts, text=slack_bold(answer))
 
 
-@app.event("app_mention")
-def handle_mention(event, say):
-    """Respond when the app is mentioned."""
-    text = event.get("text", "")
-    user = event.get("user")
-
-    logger.info(f"Mentioned by {user}: {text}")
-
-    # Echo back with a friendly message
-    response = f"<@{user}> You said: {text}"
-    say(response)
+def create_app() -> App:
+    """Create the Slack app, which checks its token with Slack, and register the message handler."""
+    app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
+    app.event("message")(handle_message)
+    return app
 
 
-# Start the app with Socket Mode
 if __name__ == "__main__":
-    # App-level token (xapp-...)
-    app_token = os.environ.get("SLACK_APP_TOKEN")
-
-    # Start Socket Mode handler
-    handler = SocketModeHandler(app, app_token)
-
-    print("⚡️ Chat app is running with Socket Mode!")
+    handler = SocketModeHandler(create_app(), os.environ.get("SLACK_APP_TOKEN"))
+    logger.info("WineBuddy is running with Socket Mode")
     handler.start()

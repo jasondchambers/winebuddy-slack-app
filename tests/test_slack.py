@@ -6,7 +6,7 @@ from collections import defaultdict
 import anthropic
 import httpx2
 import pytest
-from conftest import unescape
+from conftest import table_rows, unescape
 from pytest_bdd import given, parsers, scenarios, then, when
 
 import main
@@ -109,14 +109,8 @@ def post(slack, user, text, thread_ts=None, bot=False) -> dict:
     if thread_ts:
         event["thread_ts"] = thread_ts
         slack.thread.append(event)  # conversations.replies includes the message being answered
-    # Bolt types the @app.event decorator as possibly returning None; it returns the handler itself
-    main.handle_message(event, slack.say, slack)  # pyright: ignore[reportOptionalCall]
+    main.handle_message(event, slack.say, slack)
     return event
-
-
-def table_rows(datatable) -> list[dict]:
-    header, *rows = datatable
-    return [dict(zip(header, (unescape(c) for c in row), strict=True)) for row in rows]
 
 
 # --- Given -----------------------------------------------------------------------------------------------------------
@@ -185,7 +179,7 @@ def user_posts(slack, ctx, user, text):
 @when(parsers.parse('"{user}" posts "{text}" {seconds:g} seconds later'))
 def user_posts_later(slack, ctx, clock, user, text, seconds):
     clock.now += seconds
-    ctx["thread_ts"] = post(slack, user, unescape(text))["ts"]
+    user_posts(slack, ctx, user, text)
 
 
 @when(parsers.parse('"{user}" posts a message of {length:d} characters'))

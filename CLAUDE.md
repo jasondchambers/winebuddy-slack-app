@@ -28,9 +28,9 @@ uv run scripts/check.sh
 uv run scripts/hotspots.py
 ```
 
-Code quality limits, enforced in CI by `scripts/check.sh` (settings in `pyproject.toml`), are modelled on CodeScene's Code Health biomarkers: per function, cyclomatic complexity ≤ 10 (ruff, lizard), cognitive complexity ≤ 10 (complexipy), ≤ 50 lines and ≤ 4 arguments (lizard), nesting ≤ 3 and conditions of ≤ 3 terms (ruff). Plus ruff formatting and lint (including naming and pep257 docstrings) and pyright in basic mode. Keep new code within these limits rather than adding ignores.
+Code quality limits, enforced in CI by `scripts/check.sh` (settings in `pyproject.toml`), are modelled on CodeScene's Code Health biomarkers: per function, cyclomatic complexity ≤ 10, ≤ 4 arguments, nesting ≤ 3 and conditions of ≤ 3 terms (ruff), cognitive complexity ≤ 10 (complexipy) and ≤ 50 lines (lizard). Plus ruff formatting and lint (including naming and pep257 docstrings) and pyright in basic mode. Keep new code within these limits rather than adding ignores.
 
-Tests are Gherkin scenarios (pytest-bdd) in `tests/features/`, with step definitions in `tests/test_slack.py` (main.py) and `tests/test_ask.py` (ask.py). `tests/conftest.py` stubs the Slack token check that runs when main.py is imported. CI (`.github/workflows/sonar.yml`) runs them with coverage before the SonarQube Cloud scan.
+Tests are Gherkin scenarios (pytest-bdd) in `tests/features/`, with step definitions in `tests/test_slack.py` (main.py) and `tests/test_ask.py` (ask.py). Shared step helpers are in `tests/conftest.py`. The Slack app (`create_app()`) and the Claude client (`ask.claude()`) are only created when used, so the modules import without credentials and the tests call the handlers directly. CI (`.github/workflows/sonar.yml`) runs them with coverage before the SonarQube Cloud scan.
 
 ## Required Environment Variables
 
@@ -41,8 +41,6 @@ Tests are Gherkin scenarios (pytest-bdd) in `tests/features/`, with step definit
 
 ## Architecture
 
-Slack bot (`main.py`) using slack-bolt's Socket Mode adapter; `ask.py` holds the Claude side. The app listens for:
-- `message` events - Passes the message to `ask.ask()` and replies in the message's thread (ignores bot messages to prevent loops). Each thread is a conversation: a reply in a thread is asked along with the thread so far (read back via `conversations.replies`, last `MAX_HISTORY_MESSAGES`), sent as earlier messages in the API request. Nothing is stored.
-- `app_mention` events - Responds when the bot is @mentioned
+Slack bot (`main.py`) using slack-bolt's Socket Mode adapter; `ask.py` holds the Claude side. `create_app()` registers the handler for `message` events, which passes the message to `ask.ask()` and replies in the message's thread (ignores bot messages to prevent loops). Each thread is a conversation: a reply in a thread is asked along with the thread so far (read back via `conversations.replies`, last `MAX_HISTORY_MESSAGES`), sent as earlier messages in the API request. Nothing is stored.
 
-`ask.ask()` runs `winebuddy.py --refresh` (rebuilds `cellar.db` if `cellar.csv` changed), then calls the Claude API (Sonnet) with `SKILL.md` from `WINEBUDDY_DIR` as the system prompt and two tools, `query_wines` and `discover`, which run `winebuddy.py` with an argument list (no shell), looping until Claude answers (at most `MAX_TOOL_ROUNDS`). Responses stream back and update the Slack message in place every 2 seconds.
+`ask.ask()` runs `winebuddy.py --refresh` (rebuilds `cellar.db` if `cellar.csv` changed), then calls the Claude API (Sonnet) with `SKILL.md` from `WINEBUDDY_DIR` as the system prompt and two tools, `query_wines` and `discover`, which run `winebuddy.py` with an argument list (no shell; a turn's lookups run concurrently), looping until Claude answers (at most `MAX_TOOL_ROUNDS`). Responses stream back and update the Slack message in place every 2 seconds.

@@ -53,13 +53,11 @@ uv sync
 3. Generate an **App-Level Token** with `connections:write` scope
 4. Under **OAuth & Permissions**, add these bot token scopes:
    - `chat:write`
-   - `app_mentions:read`
    - `im:history` (for DMs)
    - `channels:history` (for public channels)
 5. Enable **Event Subscriptions** and subscribe to:
    - `message.im`
    - `message.channels`
-   - `app_mention`
 6. Install the app to your workspace
 7. Invite the app into a channel
 

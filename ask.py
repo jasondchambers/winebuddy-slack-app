@@ -3,11 +3,13 @@
 Usage: python ask.py "<question>"
 """
 
+import functools
 import logging
 import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
@@ -43,6 +45,28 @@ and *bold* lines instead. Start each bullet with "• " (Slack shows a leading "
 Bold is *single asterisks*, never **double**; italics are _underscores_.
 """
 
+# query_wines filters; every one is required, as null (or false) to skip it
+QUERY_PROPERTIES = {
+    "color": {"type": ["string", "null"], "description": "e.g. Red, White, Rosé"},
+    "varietal": {"type": ["string", "null"], "description": "e.g. Pinot Noir"},
+    "producer": {"type": ["string", "null"]},
+    "country": {"type": ["string", "null"], "description": "e.g. Italy"},
+    "region": {"type": ["string", "null"], "description": "e.g. Willamette"},
+    "vintage": {"type": ["integer", "null"], "description": "Exact vintage year"},
+    "vintage_min": {"type": ["integer", "null"]},
+    "vintage_max": {"type": ["integer", "null"]},
+    "score_min": {"type": ["number", "null"], "description": "Minimum professional or community score"},
+    "in_stock": {"type": "boolean", "description": "Only wines with quantity > 0"},
+    "ready": {"type": "boolean", "description": "Only wines within their drinking window"},
+    "sort": {
+        "type": "string",
+        "enum": ["vintage", "producer", "score", "price", "wine_name"],
+        "description": "Sort field; vintage is the usual order",
+    },
+    "desc": {"type": "boolean", "description": "Sort descending"},
+    "limit": {"type": ["integer", "null"]},
+}
+
 QUERY_TOOL: BetaToolParam = {
     "name": "query_wines",
     "description": "Search the wine cellar (winebuddy.py query). All filters are optional (null to skip); "
@@ -51,42 +75,8 @@ QUERY_TOOL: BetaToolParam = {
     "strict": True,
     "input_schema": {
         "type": "object",
-        "properties": {
-            "color": {"type": ["string", "null"], "description": "e.g. Red, White, Rosé"},
-            "varietal": {"type": ["string", "null"], "description": "e.g. Pinot Noir"},
-            "producer": {"type": ["string", "null"]},
-            "country": {"type": ["string", "null"], "description": "e.g. Italy"},
-            "region": {"type": ["string", "null"], "description": "e.g. Willamette"},
-            "vintage": {"type": ["integer", "null"], "description": "Exact vintage year"},
-            "vintage_min": {"type": ["integer", "null"]},
-            "vintage_max": {"type": ["integer", "null"]},
-            "score_min": {"type": ["number", "null"], "description": "Minimum professional or community score"},
-            "in_stock": {"type": "boolean", "description": "Only wines with quantity > 0"},
-            "ready": {"type": "boolean", "description": "Only wines within their drinking window"},
-            "sort": {
-                "type": "string",
-                "enum": ["vintage", "producer", "score", "price", "wine_name"],
-                "description": "Sort field; vintage is the usual order",
-            },
-            "desc": {"type": "boolean", "description": "Sort descending"},
-            "limit": {"type": ["integer", "null"]},
-        },
-        "required": [
-            "color",
-            "varietal",
-            "producer",
-            "country",
-            "region",
-            "vintage",
-            "vintage_min",
-            "vintage_max",
-            "score_min",
-            "in_stock",
-            "ready",
-            "sort",
-            "desc",
-            "limit",
-        ],
+        "properties": QUERY_PROPERTIES,
+        "required": list(QUERY_PROPERTIES),  # strict mode needs every property
         "additionalProperties": False,
     },
 }
@@ -134,7 +124,11 @@ TOO_MANY_LOOKUPS_TEXT = "_Stopped: that question needed too many lookups._"
 
 logger = logging.getLogger(__name__)
 
-client = anthropic.Anthropic(timeout=120.0)
+
+@functools.cache
+def claude() -> anthropic.Anthropic:
+    """Return the Claude API client, created on first use (so importing this module needs no API key)."""
+    return anthropic.Anthropic(timeout=120.0)
 
 
 class CellarUnavailable(Exception):
@@ -203,6 +197,12 @@ def run_tool(block) -> BetaToolResultBlockParam:
     return {"type": "tool_result", "tool_use_id": block.id, "content": content, "is_error": is_error}
 
 
+def run_tools(content) -> list[BetaToolResultBlockParam]:
+    """Run a turn's tool calls concurrently and return their tool_result blocks, in the calls' order."""
+    with ThreadPoolExecutor() as pool:
+        return list(pool.map(run_tool, [b for b in content if b.type == "tool_use"]))
+
+
 def stream_turn(
     system: list[BetaTextBlockParam], messages: list[BetaMessageParam], on_text: Callable[[str], None]
 ) -> tuple[BetaMessage, str]:
@@ -210,7 +210,7 @@ def stream_turn(
 
     Returns Claude's message and its text.
     """
-    with client.beta.messages.stream(
+    with claude().beta.messages.stream(
         model=MODEL,
         max_tokens=16000,
         betas=["server-side-fallback-2026-07-01"],
@@ -261,7 +261,7 @@ def ask(
             return text or NO_RESPONSE_TEXT
 
         messages.append({"role": "assistant", "content": response.content})
-        messages.append({"role": "user", "content": [run_tool(b) for b in response.content if b.type == "tool_use"]})
+        messages.append({"role": "user", "content": run_tools(response.content)})
 
     return (text + "\n\n" if text else "") + TOO_MANY_LOOKUPS_TEXT
 
