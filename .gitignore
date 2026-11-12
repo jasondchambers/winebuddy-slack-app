@@ -12,3 +12,7 @@ deployment.env
 
 # Claude Code
 .claude/
+
+# Test coverage
+.coverage
+coverage.xml
