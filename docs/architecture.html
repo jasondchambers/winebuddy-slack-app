@@ -114,8 +114,8 @@ code { font: 13px var(--font-mono); font-variant-ligatures: none; }
     <p class="lede">A Slack bot that answers questions about the wine cellar. It calls the Claude API, which looks bottles up through the winebuddy CLI. Each Slack thread is one conversation.</p>
   </header>
 
-  <div class="diagram" role="img" aria-label="Architecture diagram: Slack connects to main.py over Socket Mode; main.py calls ask.py, which calls the Claude API and runs the winebuddy CLI. winebuddy-sync-with-cellartracker keeps the cellar up to date from CellarTracker.">
-    <object class="diagram-svg" type="image/svg+xml" data="architecture.svg"><img src="architecture.svg" alt=""></object>
+  <div class="diagram">
+    <object class="diagram-svg" type="image/svg+xml" data="architecture.svg"><img src="architecture.svg" alt="Architecture diagram: Slack connects to main.py over Socket Mode; main.py calls ask.py, which calls the Claude API and runs the winebuddy CLI. winebuddy-sync-with-cellartracker keeps the cellar up to date from CellarTracker."></object>
   </div>
 
   <section style="display:grid;gap:16px">

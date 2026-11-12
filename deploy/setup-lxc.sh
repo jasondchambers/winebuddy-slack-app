@@ -8,7 +8,7 @@ set -euo pipefail
 apt-get update && apt-get install -y curl git ca-certificates gnupg
 
 # 2. uv (Python package manager — handles Python 3.14 install too)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh | sh
 
 # 3. Create app user
 useradd --system --create-home --shell /bin/bash winebuddy
