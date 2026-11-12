@@ -141,6 +141,11 @@ def api_down(fake_ask):
         request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"))
 
 
+@given(parsers.parse('asking fails unexpectedly with "{error}"'))
+def unexpected_error(fake_ask, error):
+    fake_ask.error = OSError(error)
+
+
 @given(parsers.parse('a thread where "{user}" asked "{question}" and the bot answered "{answer}"'))
 def a_thread(slack, ctx, user, question, answer):
     root = {"channel": CHANNEL, "ts": slack.new_ts(), "user": user, "text": question}
@@ -217,6 +222,12 @@ def last_post(slack, text):
 @then("the bot posts nothing")
 def posts_nothing(slack):
     assert slack.posts == [] and slack.updates == []
+
+
+@then(parsers.parse('the error "{text}" is logged'))
+def error_logged(caplog, text):
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert any(r.exc_info and text in str(r.exc_info[1]) for r in errors), errors
 
 
 @then(parsers.parse('the reply is updated to "{text}"'))

@@ -92,3 +92,9 @@ Feature: Answering Slack messages
     Given the Claude API can't be reached
     When "U1" posts "Any Barolo?"
     Then the reply is updated to "Sorry, I couldn't reach Claude. Please try again in a minute."
+
+  Scenario: An unexpected error is logged, and its details aren't posted to Slack
+    Given asking fails unexpectedly with "[Errno 2] No such file or directory: '/home/winebuddy/.winebuddy'"
+    When "U1" posts "Any Barolo?"
+    Then the reply is updated to "Sorry, something went wrong. Please try again."
+    And the error "No such file or directory: '/home/winebuddy/.winebuddy'" is logged

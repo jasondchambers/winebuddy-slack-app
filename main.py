@@ -143,9 +143,10 @@ def handle_message(event, say, client, logger):
     except anthropic.APIError as e:
         logger.error(f"Claude API error for user {user}: {e}")
         response = "Sorry, I couldn't reach Claude. Please try again in a minute."
-    except Exception as e:
-        logger.error(f"Error invoking Claude: {e}")
-        response = f"Error: {e}"
+    except Exception:
+        # Log the details, but don't post them: they can include paths and commands from the server
+        logger.exception(f"Unexpected error answering user {user}")
+        response = "Sorry, something went wrong. Please try again."
 
     logger.info(f"Claude took {time() - t_start:.2f}s for user {user}")
 
