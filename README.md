@@ -55,9 +55,11 @@ uv sync
    - `chat:write`
    - `im:history` (for DMs)
    - `channels:history` (for public channels)
+   - `groups:history` (for private channels)
 5. Enable **Event Subscriptions** and subscribe to:
    - `message.im`
    - `message.channels`
+   - `message.groups`
 6. Install the app to your workspace
 7. Invite the app into a channel
 
